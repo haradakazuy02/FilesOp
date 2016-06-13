@@ -91,6 +91,7 @@ object FilesOp {
   }
 
   def addcr(f:File, lf:String, encoding:String = null) {
+    if (!f.isFile) return;
     val source = if (encoding == null) Source.fromFile(f) else Source.fromFile(f, encoding);
     var sb = new StringBuilder;
     var change = false;
@@ -124,6 +125,7 @@ println("[addcr] " + f);
   }
   lazy val buffer = new Array[Byte](0x100000);
   def rmbom(f:File) {
+    if (!f.isFile) return;
     val boms = Array(0xEF, 0xBB, 0xBF);
     val ins = new FileInputStream(f);
     for (check<-boms) {
@@ -147,6 +149,7 @@ println("[rmbom] " + f);
     ous.close;
   }
   def copyfile(f:File, to:File) {
+    if (!f.isFile) return;
     if (to.getParentFile != null) to.getParentFile.mkdirs;
     val ins = new FileInputStream(f);
     val ous = new FileOutputStream(to);
@@ -178,6 +181,9 @@ if (verbose) println("[operate]" + path);
       val p = if (path.isEmpty) "" else (path + "/");
       for (child<-target.listFiles) {
         op(func, child, p + child.getName);
+      }
+      if ((filter == null) || filter(target, path)) {
+        func(target, path);
       }
     }
   }
