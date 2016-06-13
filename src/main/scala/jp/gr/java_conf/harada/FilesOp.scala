@@ -1,6 +1,6 @@
 package jp.gr.java_conf.harada;
 import java.io._
-import scala.io.Source;
+import scala.io.Source
 
 object FilesOp {
   def main(args: Array[String]) {
@@ -9,6 +9,7 @@ object FilesOp {
     var pathstarts : List[String] = Nil;
     var excludestarts : List[String] = Nil;
     var pathends : List[String] = Nil;
+    var notonlyfile = false;
     var n = args.size;
     var skip = 0;
     for (i<-0 until args.size) {
@@ -27,34 +28,38 @@ object FilesOp {
           case "-pathends" => 
             skip = 1;
             pathends ++= args(i+1).split(",").toList;
+          case "-notonlyfile" => notonlyfile = true;
           case _ => println("unknown option : "+ args(i));
         }
       }
     }
 
     if (n+1 >= args.length) {
-      System.out.println("FilesOp (options) [basedir] [command].. : it operates files under [basedir] for the [command].");
+      System.out.println("FilesOp (options) [basedir] [command].. : it operates files under [basedir] for [command].");
       System.out.println("(options) ");
-      System.out.println(" -pathstarts [pre1,pre2,..] : the relative paths of target file must start with pre1, pre2, and so on.");
-      System.out.println(" -excludestarts [pre1,pre2,..] : the relative paths of target file must not start with pre1, pre2, and so on.");
-      System.out.println(" -pathends [ext1,ext2,..] : the relative paths of target file must end with pre1, pre2, and so on.");
+      System.out.println(" -pathstarts [pre1,pre2,..] : relative paths of target file must start with pre1, pre2, and so on.");
+      System.out.println(" -excludestarts [pre1,pre2,..] : relative paths of target file must not start with pre1, pre2, and so on.");
+      System.out.println(" -pathends [ext1,ext2,..] : relative paths of target file must end with pre1, pre2, and so on.");
+      System.out.println(" -notonlyfile : target is not only file but also directory.");
       System.out.println("[command]");
-      System.out.println(" path : show paths of target file");
-      System.out.println(" addcr (addcropt) : modify the line end to System.getProperty(\"line.separator\")");
+      System.out.println(" path : show paths of target file.");
+      System.out.println(" addcr (addcropt) : modify line ends to System.getProperty(\"line.separator\").");
       System.out.println("  (addcropt)");
-      System.out.println("   -encoding [enc] : specify the encoding with it read target files.");
+      System.out.println("   -encoding [enc] : specify encoding with it read target files.");
       System.out.println("   -lf : modify line end to \\n");
       System.out.println("   -crlf : modify line end to \\r\\n");
-      System.out.println(" rmbom :  remove the byte order mark of UTF-8.");
-      System.out.println(" remove : delete target files.");
+      System.out.println(" rmbom :  remove byte order mark of UTF-8.");
+      System.out.println(" remove : delete target files. use -notonlyfile to remove directory.");
       System.out.println(" copy [todir] : copy target files to [todir].");
+      System.out.println(" command (commandopt) [command] : run command for each file.(the parameter is $path)");
+      System.out.println("   ex. FilesOp . command \"find \\\"searchstring\\\" $path\" ");
       System.exit(1);
     }
     try {
       val filter : (File, String)=>Boolean = if (pathends == Nil) null else {
         (f:File, path:String) => if (pathends.find(path.endsWith(_))==None) false else true;
       }
-      val fop = new FilesOp(filter, pathstarts, excludestarts);
+      val fop = new FilesOp(filter, notonlyfile, pathstarts, excludestarts);
       fop.verbose = verbose;
       val basedir = new File(args(n));
       args(n+1) match {
@@ -83,15 +88,23 @@ object FilesOp {
           val path = basedir.getCanonicalPath;
           if (topath.startsWith(path) || path.startsWith(topath)) throw new IllegalArgumentException("It cannot copy to/from it's subdirectory.");
           fop.op((f:File,path:String)=>copyfile(f, new File(todir, path)), basedir);
+        case "command" => 
+          val s = args(n+2);
+          val index = s.indexOf("$path");
+          if (index == -1) throw new IllegalArgumentException("command doesn't contain $path : " + s);
+          def getcommand(f:File) = StringContext(s.substring(0, index), s.substring(index+5)).s(f.getCanonicalPath);
+
+import scala.sys.process._
+          fop.op((f:File,path:String)=>{
+            getcommand(f)!
+          }, basedir);
       }
-     
     } catch {
       case e: Exception => e.printStackTrace(System.out);
     }
   }
 
   def addcr(f:File, lf:String, encoding:String = null) {
-    if (!f.isFile) return;
     val source = if (encoding == null) Source.fromFile(f) else Source.fromFile(f, encoding);
     var sb = new StringBuilder;
     var change = false;
@@ -125,7 +138,6 @@ println("[addcr] " + f);
   }
   lazy val buffer = new Array[Byte](0x100000);
   def rmbom(f:File) {
-    if (!f.isFile) return;
     val boms = Array(0xEF, 0xBB, 0xBF);
     val ins = new FileInputStream(f);
     for (check<-boms) {
@@ -149,7 +161,6 @@ println("[rmbom] " + f);
     ous.close;
   }
   def copyfile(f:File, to:File) {
-    if (!f.isFile) return;
     if (to.getParentFile != null) to.getParentFile.mkdirs;
     val ins = new FileInputStream(f);
     val ous = new FileOutputStream(to);
@@ -163,28 +174,28 @@ println("[rmbom] " + f);
 println("[copy] " + f + " => " + to);
     ins.close;
     ous.close;
+    to.setLastModified(f.lastModified);
   }
 }
 
-class FilesOp(filter:(File, String)=>Boolean, pathstarts:List[String]=null, excludestarts:List[String]=Nil) {
+class FilesOp(filter:(File, String)=>Boolean, notonlyfile:Boolean = false, pathstarts:List[String]=null, excludestarts:List[String]=Nil) {
   var verbose = false;
   def op(func:(File, String)=>Unit, target:File, path:String = "") {
     if ((pathstarts != Nil) && (pathstarts.find((s:String)=>(path.startsWith(s) || s.startsWith(path))) == None)) return;
     if (excludestarts.find((s:String)=>(path.startsWith(s))) != None) return;
 
-    if (target.isFile) {
-      if ((filter == null) || filter(target, path)) {
-if (verbose) println("[operate]" + path);
-        func(target, path);
-      }
-    } else {
+    if (target.isDirectory) {
       val p = if (path.isEmpty) "" else (path + "/");
       for (child<-target.listFiles) {
         op(func, child, p + child.getName);
       }
+    }
+    if (notonlyfile || target.isFile) {
       if ((filter == null) || filter(target, path)) {
+if (verbose) println("[operate]" + path);
         func(target, path);
       }
     }
+
   }
 }
