@@ -62,8 +62,10 @@ object FilesOp {
       val fop = new FilesOp(filter, notonlyfile, pathstarts, excludestarts);
       fop.verbose = verbose;
       val basedir = new File(args(n));
+      val basepath = if (basedir.isFile) basedir.getName else "";
+
       args(n+1) match {
-        case "path" => fop.op((f:File,path:String)=>println(path), basedir);
+        case "path" => fop.op((f:File,path:String)=>println(path), basedir, basepath);
         case "addcr" => 
           var lf = System.getProperty("line.separator");
           var encoding : String = null;
@@ -79,15 +81,15 @@ object FilesOp {
               case _ => println("unknown addcr option : " + args(i));
             }
           }
-          fop.op((f:File,path:String)=>addcr(f, lf, encoding), basedir);
-        case "rmbom" => fop.op((f:File,path:String)=>rmbom(f), basedir);
-        case "remove" => fop.op((f:File,path:String)=>f.delete, basedir);
+          fop.op((f:File,path:String)=>addcr(f, lf, encoding), basedir, basepath);
+        case "rmbom" => fop.op((f:File,path:String)=>rmbom(f), basedir, basepath);
+        case "remove" => fop.op((f:File,path:String)=>f.delete, basedir, basepath);
         case "copy" => 
           val todir = new File(args(n+2));
           val topath = todir.getCanonicalPath;
           val path = basedir.getCanonicalPath;
           if (topath.startsWith(path) || path.startsWith(topath)) throw new IllegalArgumentException("It cannot copy to/from it's subdirectory.");
-          fop.op((f:File,path:String)=>copyfile(f, new File(todir, path)), basedir);
+          fop.op((f:File,path:String)=>copyfile(f, new File(todir, path)), basedir, basepath);
         case "command" => 
           val s = args(n+2);
           val index = s.indexOf("$path");
@@ -97,7 +99,7 @@ object FilesOp {
 import scala.sys.process._
           fop.op((f:File,path:String)=>{
             getcommand(f)!
-          }, basedir);
+          }, basedir, basepath);
       }
     } catch {
       case e: Exception => e.printStackTrace(System.out);

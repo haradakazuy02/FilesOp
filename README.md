@@ -19,6 +19,7 @@
         - pathstarts [pre1,pre2,..] : the relative paths of target file must start with pre1, pre2, and so on.
         - excludestarts [pre1,pre2,..] : the relative paths of target file must not start with pre1, pre2, and so on.
         - pathends [ext1,ext2,..] : the relative paths of target file must end with pre1, pre2, and so on.
+        - notonlyfile : target is not only file but alse directory.
 
     - cmmand..
 
@@ -36,8 +37,9 @@
 
         - rmbom :  remove the byte order mark of UTF-8.
 
-        - remove : delete target files.
+        - remove : delete target files. use -notonlyfile to remove directory.
 
         - copy [todir] : copy target files to [todir].
 
-ex. target\pack\bin\file-op -pathstarts src,project . path
+        - command [command] : run command for each file. (the parameter is $path)
+            ex. FilesOp -pathends txt . command "find \"xxx\" $path
