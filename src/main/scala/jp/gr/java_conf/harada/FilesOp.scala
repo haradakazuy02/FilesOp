@@ -1,6 +1,7 @@
 package jp.gr.java_conf.harada;
 import java.io._
 import scala.io.Source
+import javax.script._
 
 object FilesOp {
   def main(args: Array[String]) {
@@ -51,8 +52,8 @@ object FilesOp {
       System.out.println(" rmbom :  remove byte order mark of UTF-8.");
       System.out.println(" remove : delete target files. use -notonlyfile to remove directory.");
       System.out.println(" copy [todir] : copy target files to [todir].");
-      System.out.println(" command (commandopt) [command] : run command for each file.(the parameter is $path)");
-      System.out.println("   ex. FilesOp . command \"find \\\"searchstring\\\" $path\" ");
+      System.out.println(" command (commandopt) [commandfunc] : run command for each file.(parameter is _)");
+      System.out.println("   ex. FilesOp src command \"find \\\"searchstring\\\" _\" ");
       System.exit(1);
     }
     try {
@@ -91,10 +92,7 @@ object FilesOp {
           if (topath.startsWith(path) || path.startsWith(topath)) throw new IllegalArgumentException("It cannot copy to/from it's subdirectory.");
           fop.op((f:File,path:String)=>copyfile(f, new File(todir, path)), basedir, basepath);
         case "command" => 
-          val s = args(n+2);
-          val index = s.indexOf("$path");
-          if (index == -1) throw new IllegalArgumentException("command doesn't contain $path : " + s);
-          def getcommand(f:File) = StringContext(s.substring(0, index), s.substring(index+5)).s(f.getCanonicalPath);
+          def getcommand(f:File) = args(n+2).replace("_", f.getPath);
 
 import scala.sys.process._
           fop.op((f:File,path:String)=>{

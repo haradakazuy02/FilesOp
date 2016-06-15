@@ -41,5 +41,5 @@
 
         - copy [todir] : copy target files to [todir].
 
-        - command [command] : run command for each file. (the parameter is $path)
-            ex. FilesOp -pathends txt . command "find \"xxx\" $path
+        - command [command] : run command for each file. (the parameter is _)
+            ex. FilesOp -pathends txt . command "find \"xxx\" _"
