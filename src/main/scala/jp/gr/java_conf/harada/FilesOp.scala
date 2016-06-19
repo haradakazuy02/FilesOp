@@ -2,6 +2,8 @@ package jp.gr.java_conf.harada;
 import java.io._
 import scala.io.Source
 import javax.script._
+import scala.sys.process._
+import scala.collection.convert.WrapAsScala._
 
 object FilesOp {
   def main(args: Array[String]) {
@@ -54,10 +56,12 @@ object FilesOp {
       System.out.println(" copy [todir] : copy target files to [todir].");
       System.out.println(" command (commandopt) [commandfunc] : run command for each file.(parameter is _)");
       System.out.println("   ex. FilesOp src command \"find \\\"searchstring\\\" _\" ");
+      System.out.println(" findjar [name] : find jar which contains class whose name ends with [name].");
+      System.out.println("   this command specifies for default the option :-pathends .jar.");
       System.exit(1);
     }
     try {
-      val filter : (File, String)=>Boolean = if (pathends == Nil) null else {
+      val filter : (File, String)=>Boolean = if (pathends == Nil) (File,String)=>true else {
         (f:File, path:String) => if (pathends.find(path.endsWith(_))==None) false else true;
       }
       val fop = new FilesOp(filter, notonlyfile, pathstarts, excludestarts);
@@ -94,10 +98,16 @@ object FilesOp {
         case "command" => 
           def getcommand(f:File) = args(n+2).replace("_", f.getPath);
 
-import scala.sys.process._
           fop.op((f:File,path:String)=>{
             getcommand(f)!
           }, basedir, basepath);
+
+        case "findjar" =>
+          if (pathends == Nil) {
+            val prefil = fop.filter;
+            fop.filter = (f:File,path:String)=>if (path.endsWith(".jar")) prefil(f,path) else false;
+          }
+          fop.op((f:File,path:String)=>findjar(f,path, args(n+2)), basedir, basepath);
       }
     } catch {
       case e: Exception => e.printStackTrace(System.out);
@@ -176,9 +186,19 @@ println("[copy] " + f + " => " + to);
     ous.close;
     to.setLastModified(f.lastModified);
   }
+import java.util.jar._;
+  def findjar(f:File, path:String, name:String) {
+    val jf = new JarFile(f);
+    for (entry<-jf.entries) {
+      if (entry.getName.endsWith(name + ".class")) {
+println("[findjar]" + path + " (" + entry.getName + ")");
+        return;
+      }
+    }
+  }
 }
 
-class FilesOp(filter:(File, String)=>Boolean, notonlyfile:Boolean = false, pathstarts:List[String]=null, excludestarts:List[String]=Nil) {
+class FilesOp(var filter:(File, String)=>Boolean, notonlyfile:Boolean = false, pathstarts:List[String]=null, excludestarts:List[String]=Nil) {
   var verbose = false;
   def op(func:(File, String)=>Unit, target:File, path:String = "") {
     if ((pathstarts != Nil) && (pathstarts.find((s:String)=>(path.startsWith(s) || s.startsWith(path))) == None)) return;
@@ -191,7 +211,7 @@ class FilesOp(filter:(File, String)=>Boolean, notonlyfile:Boolean = false, paths
       }
     }
     if (notonlyfile || target.isFile) {
-      if ((filter == null) || filter(target, path)) {
+      if (filter(target, path)) {
 if (verbose) println("[operate]" + path);
         func(target, path);
       }
