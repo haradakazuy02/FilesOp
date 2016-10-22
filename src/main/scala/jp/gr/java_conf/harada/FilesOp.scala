@@ -48,7 +48,8 @@ object FilesOp {
       System.out.println(" path : show paths of target file.");
       System.out.println(" addcr (addcropt) : modify line ends to System.getProperty(\"line.separator\").");
       System.out.println("  (addcropt)");
-      System.out.println("   -encoding [enc] : specify encoding with it read target files.");
+      System.out.println("   -encoding [enc] : specify the encoding it reads target files with.");
+      System.out.println("   -outencoding [enc] : specify the encoding it writes resulting files with.");
       System.out.println("   -lf : modify line end to \\n");
       System.out.println("   -crlf : modify line end to \\r\\n");
       System.out.println(" rmbom :  remove byte order mark of UTF-8.");
@@ -74,6 +75,7 @@ object FilesOp {
         case "addcr" => 
           var lf = System.getProperty("line.separator");
           var encoding : String = null;
+          var outencoding : String = null;
           skip = 0;
           var m = args.size;
           for (i<-(n+2) until args.size if m == args.size) {
@@ -83,10 +85,11 @@ object FilesOp {
               case "-lf" => lf = "\n";
               case "-crlf" => lf = "\r\n";
               case "-encoding" => skip = 1; encoding = args(i+1);
+              case "-outencoding" => skip = 1; outencoding = args(i+1);
               case _ => println("unknown addcr option : " + args(i));
             }
           }
-          fop.op((f:File,path:String)=>addcr(f, lf, encoding), basedir, basepath);
+          fop.op((f:File,path:String)=>addcr(f, lf, encoding, outencoding), basedir, basepath);
         case "rmbom" => fop.op((f:File,path:String)=>rmbom(f), basedir, basepath);
         case "remove" => fop.op((f:File,path:String)=>f.delete, basedir, basepath);
         case "copy" => 
@@ -114,7 +117,7 @@ object FilesOp {
     }
   }
 
-  def addcr(f:File, lf:String, encoding:String = null) {
+  def addcr(f:File, lf:String, encoding:String = null, outencoding:String=null) {
     val source = if (encoding == null) Source.fromFile(f) else Source.fromFile(f, encoding);
     var sb = new StringBuilder;
     var change = false;
@@ -139,9 +142,10 @@ object FilesOp {
     source.close;
     lines :+= sb.toString;
 
-    if (change) {
+    if (change || (outencoding != null)) {
 println("[addcr] " + f);
-      val wr = if (encoding == null) new FileWriter(f) else new OutputStreamWriter(new FileOutputStream(f), encoding);
+      val enc = if (outencoding != null) outencoding else encoding;
+      val wr = if (enc == null) new FileWriter(f) else new OutputStreamWriter(new FileOutputStream(f), enc);
       for (line<-lines) wr.write(line);
       wr.close;
     }
